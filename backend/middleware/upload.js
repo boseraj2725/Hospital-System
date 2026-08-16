@@ -1,51 +1,74 @@
 const multer = require("multer");
 const path = require("path");
+const fs = require("fs");
 
+// ==============================
+// Upload Folder
+// ==============================
+const uploadFolder = path.join(
+    __dirname,
+    "../uploads/profile"
+);
 
+// Create folder automatically
+if (!fs.existsSync(uploadFolder)) {
+    fs.mkdirSync(uploadFolder, {
+        recursive: true,
+    });
+}
+
+// ==============================
 // Storage Configuration
+// ==============================
 const storage = multer.diskStorage({
 
     destination: function (req, file, cb) {
 
-        cb(null, "uploads/profile");
+        cb(null, uploadFolder);
 
     },
 
-
     filename: function (req, file, cb) {
 
-        cb(
-            null,
-            Date.now() + path.extname(file.originalname)
-        );
+        const extension = path.extname(file.originalname);
 
-    }
+        const filename =
+            Date.now() +
+            "-" +
+            Math.round(Math.random() * 1E9) +
+            extension;
+
+        cb(null, filename);
+
+    },
 
 });
 
+// ==============================
+// Allowed File Types
+// ==============================
+const allowedTypes = [
+    "image/jpeg",
+    "image/jpg",
+    "image/png",
+    "image/webp",
+];
 
+// ==============================
 // File Filter
-
+// ==============================
 const fileFilter = (req, file, cb) => {
-
-
-    const allowedTypes = [
-        "image/jpeg",
-        "image/png",
-        "image/jpg",
-        "image/webp"
-    ];
-
 
     if (allowedTypes.includes(file.mimetype)) {
 
         cb(null, true);
 
-    }
-    else {
+    } else {
 
         cb(
-            new Error("Only image files allowed"),
+            new Error(
+                "Only JPG, JPEG, PNG and WEBP images are allowed"
+            ),
             false
         );
 
@@ -53,10 +76,9 @@ const fileFilter = (req, file, cb) => {
 
 };
 
-
-
-// Multer Upload
-
+// ==============================
+// Multer Configuration
+// ==============================
 const upload = multer({
 
     storage: storage,
@@ -64,10 +86,12 @@ const upload = multer({
     fileFilter: fileFilter,
 
     limits: {
-        fileSize: 2 * 1024 * 1024
-    }
+        fileSize: 5 * 1024 * 1024,
+    },
 
 });
 
-
+// ==============================
+// Export
+// ==============================
 module.exports = upload;

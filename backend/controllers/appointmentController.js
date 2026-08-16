@@ -1,13 +1,12 @@
 const Appointment = require("../models/Appointment");
 const Notification = require("../models/Notification");
 
-// ===============================
+// ==========================================
 // Create Appointment
-// ===============================
+// ==========================================
+
 const createAppointment = async (req, res) => {
-
     try {
-
         const {
             doctor,
             appointmentDate,
@@ -15,76 +14,138 @@ const createAppointment = async (req, res) => {
             reason,
         } = req.body;
 
-        const appointment = new Appointment({
+        // ==================================
+        // Validation
+        // ==================================
 
-            patient: req.user.id,
+        if (!doctor) {
+            return res.status(400).json({
+                success: false,
+                message: "Doctor is required",
+            });
+        }
 
-            doctor,
+        if (!appointmentDate) {
+            return res.status(400).json({
+                success: false,
+                message:
+                    "Appointment date is required",
+            });
+        }
 
-            appointmentDate,
+        if (!appointmentTime) {
+            return res.status(400).json({
+                success: false,
+                message:
+                    "Appointment time is required",
+            });
+        }
 
-            appointmentTime,
+        if (!reason || !reason.trim()) {
+            return res.status(400).json({
+                success: false,
+                message:
+                    "Appointment reason is required",
+            });
+        }
 
-            reason,
+        // ==================================
+        // Patient from logged-in user
+        // ==================================
 
-        });
+        const appointment =
+            new Appointment({
+                patient: req.user.id,
+                doctor,
+                appointmentDate,
+                appointmentTime,
+                reason: reason.trim(),
+            });
 
         await appointment.save();
 
-        // Create Notification
-        const notification = await Notification.create({
+        // ==================================
+        // Notification
+        // ==================================
 
-            title: "New Appointment",
+        const notification =
+            await Notification.create({
+                title: "New Appointment",
+                message:
+                    "A new appointment has been booked.",
+                role: "Admin",
+            });
 
-            message: "A new appointment has been booked.",
+        // ==================================
+        // Socket.IO
+        // ==================================
 
-            role: "Admin",
-
-        });
-
-        // Live Notification
         const io = req.app.get("io");
 
         if (io) {
-
-            io.emit("newNotification", notification);
-
+            io.emit(
+                "newNotification",
+                notification
+            );
         }
 
+        // ==================================
+        // Response
+        // ==================================
+
+        const populatedAppointment =
+            await Appointment.findById(
+                appointment._id
+            )
+                .populate(
+                    "patient",
+                    "name phone email"
+                )
+                .populate(
+                    "doctor",
+                    "name specialization"
+                );
+
         res.status(201).json({
-
             success: true,
-
-            message: "Appointment Booked Successfully",
-
-            appointment,
-
+            message:
+                "Appointment Booked Successfully",
+            appointment:
+                populatedAppointment,
         });
 
     } catch (error) {
+        console.log(
+            "CREATE APPOINTMENT ERROR:",
+            error
+        );
 
         res.status(500).json({
-
             success: false,
-
             message: error.message,
-
         });
-
     }
-
 };
-// ===============================
+
+// ==========================================
 // Get All Appointments
-// ===============================
+// ==========================================
+
 const getAppointments = async (req, res) => {
-
     try {
-
-        const appointments = await Appointment.find()
-            .populate("patient", "name phone")
-            .populate("doctor", "name specialization")
-            .sort({ createdAt: -1 });
+        const appointments =
+            await Appointment.find()
+                .populate(
+                    "patient",
+                    "name phone email age gender"
+                )
+                .populate(
+                    "doctor",
+                    "name specialization email phone experience department"
+                )
+                .sort({
+                    createdAt: -1,
+                });
 
         res.status(200).json({
             success: true,
@@ -92,161 +153,335 @@ const getAppointments = async (req, res) => {
         });
 
     } catch (error) {
-
-        res.status(500).json({
-            success: false,
-            message: error.message,
-        });
-
-    }
-
-};
-
-// ===============================
-// Get Appointment By ID
-// ===============================
-const getAppointmentById = async (req, res) => {
-
-    try {
-
-        const appointment = await Appointment.findById(req.params.id)
-            .populate("patient")
-            .populate("doctor");
-
-        if (!appointment) {
-
-            return res.status(404).json({
-                success: false,
-                message: "Appointment Not Found",
-            });
-
-        }
-
-        res.status(200).json({
-            success: true,
-            appointment,
-        });
-
-    } catch (error) {
-
-        res.status(500).json({
-            success: false,
-            message: error.message,
-        });
-
-    }
-
-};
-
-// ===============================
-// Update Appointment
-// ===============================
-const updateAppointment = async (req, res) => {
-
-    try {
-
-        const appointment = await Appointment.findByIdAndUpdate(
-            req.params.id,
-            req.body,
-            {
-                new: true,
-                runValidators: true,
-            }
+        console.log(
+            "GET APPOINTMENTS ERROR:",
+            error
         );
 
-        if (!appointment) {
+        res.status(500).json({
+            success: false,
+            message: error.message,
+        });
+    }
+};
 
+// ==========================================
+// Get Appointment By ID
+// ==========================================
+
+const getAppointmentById = async (
+    req,
+    res
+) => {
+    try {
+        const appointment =
+            await Appointment.findById(
+                req.params.id
+            )
+                .populate(
+                    "patient",
+                    "name phone email age gender address"
+                )
+                .populate(
+                    "doctor",
+                    "name specialization email phone experience department"
+                );
+
+        if (!appointment) {
             return res.status(404).json({
                 success: false,
-                message: "Appointment Not Found",
+                message:
+                    "Appointment Not Found",
             });
-
         }
 
         res.status(200).json({
             success: true,
-            message: "Appointment Updated Successfully",
             appointment,
         });
 
     } catch (error) {
+        console.log(
+            "GET APPOINTMENT ERROR:",
+            error
+        );
 
         res.status(500).json({
             success: false,
             message: error.message,
         });
-
     }
-
 };
 
-// ===============================
-// Delete Appointment
-// ===============================
-const deleteAppointment = async (req, res) => {
+// ==========================================
+// Update Appointment
+// ==========================================
 
+const updateAppointment = async (
+    req,
+    res
+) => {
     try {
+        const {
+            patient,
+            doctor,
+            appointmentDate,
+            appointmentTime,
+            reason,
+            status,
+        } = req.body;
 
-        const appointment = await Appointment.findByIdAndDelete(req.params.id);
+        // ==================================
+        // Find Appointment
+        // ==================================
+
+        const appointment =
+            await Appointment.findById(
+                req.params.id
+            );
 
         if (!appointment) {
-
             return res.status(404).json({
                 success: false,
-                message: "Appointment Not Found",
+                message:
+                    "Appointment Not Found",
             });
-
         }
 
-        // Create Notification
-        const notification = await Notification.create({
+        // ==================================
+        // Validation
+        // ==================================
 
-            title: "Appointment Deleted",
+        if (!patient) {
+            return res.status(400).json({
+                success: false,
+                message:
+                    "Patient information is missing",
+            });
+        }
 
-            message: "An appointment has been deleted.",
+        if (!doctor) {
+            return res.status(400).json({
+                success: false,
+                message:
+                    "Doctor information is missing",
+            });
+        }
 
-            role: "Admin",
+        if (!appointmentDate) {
+            return res.status(400).json({
+                success: false,
+                message:
+                    "Appointment date is required",
+            });
+        }
 
-        });
+        if (!appointmentTime) {
+            return res.status(400).json({
+                success: false,
+                message:
+                    "Appointment time is required",
+            });
+        }
 
-        // Live Notification
+        if (!reason || !reason.trim()) {
+            return res.status(400).json({
+                success: false,
+                message:
+                    "Appointment reason is required",
+            });
+        }
+
+        // ==================================
+        // Update Patient
+        // ==================================
+
+        appointment.patient = patient;
+
+        // ==================================
+        // Update Doctor
+        // ==================================
+
+        appointment.doctor = doctor;
+
+        // ==================================
+        // Update Date
+        // ==================================
+
+        appointment.appointmentDate =
+            appointmentDate;
+
+        // ==================================
+        // Update Time
+        // ==================================
+
+        appointment.appointmentTime =
+            appointmentTime;
+
+        // ==================================
+        // Update Reason
+        // ==================================
+
+        appointment.reason =
+            reason.trim();
+
+        // ==================================
+        // Update Status
+        // ==================================
+
+        if (status) {
+            appointment.status = status;
+        }
+
+        // ==================================
+        // Save
+        // ==================================
+
+        await appointment.save();
+
+        // ==================================
+        // Populate Updated Data
+        // ==================================
+
+        const updatedAppointment =
+            await Appointment.findById(
+                appointment._id
+            )
+                .populate(
+                    "patient",
+                    "name phone email age gender address"
+                )
+                .populate(
+                    "doctor",
+                    "name specialization email phone experience department"
+                );
+
+        // ==================================
+        // Notification
+        // ==================================
+
+        const notification =
+            await Notification.create({
+                title:
+                    "Appointment Updated",
+                message:
+                    "An appointment has been updated.",
+                role: "Admin",
+            });
+
+        // ==================================
+        // Socket.IO
+        // ==================================
+
         const io = req.app.get("io");
 
         if (io) {
-
-            io.emit("newNotification", notification);
-
+            io.emit(
+                "newNotification",
+                notification
+            );
         }
+
+        // ==================================
+        // Response
+        // ==================================
 
         res.status(200).json({
             success: true,
-            message: "Appointment Deleted Successfully",
+            message:
+                "Appointment Updated Successfully",
+            appointment:
+                updatedAppointment,
         });
 
     } catch (error) {
+        console.log(
+            "UPDATE APPOINTMENT ERROR:",
+            error
+        );
 
         res.status(500).json({
             success: false,
             message: error.message,
         });
-
     }
-
 };
 
-// ===============================
+// ==========================================
+// Delete Appointment
+// ==========================================
+
+const deleteAppointment = async (
+    req,
+    res
+) => {
+    try {
+        const appointment =
+            await Appointment.findByIdAndDelete(
+                req.params.id
+            );
+
+        if (!appointment) {
+            return res.status(404).json({
+                success: false,
+                message:
+                    "Appointment Not Found",
+            });
+        }
+
+        // ==================================
+        // Notification
+        // ==================================
+
+        const notification =
+            await Notification.create({
+                title:
+                    "Appointment Deleted",
+                message:
+                    "An appointment has been deleted.",
+                role: "Admin",
+            });
+
+        // ==================================
+        // Socket.IO
+        // ==================================
+
+        const io = req.app.get("io");
+
+        if (io) {
+            io.emit(
+                "newNotification",
+                notification
+            );
+        }
+
+        res.status(200).json({
+            success: true,
+            message:
+                "Appointment Deleted Successfully",
+        });
+
+    } catch (error) {
+        console.log(
+            "DELETE APPOINTMENT ERROR:",
+            error
+        );
+
+        res.status(500).json({
+            success: false,
+            message: error.message,
+        });
+    }
+};
+
+// ==========================================
 // Export
-// ===============================
+// ==========================================
+
 module.exports = {
-
     createAppointment,
-
     getAppointments,
-
     getAppointmentById,
-
     updateAppointment,
-
     deleteAppointment,
-
 };

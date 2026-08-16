@@ -7,7 +7,9 @@ const { Server } = require("socket.io");
 
 const connectDB = require("./config/db");
 
+// ==============================
 // Routes
+// ==============================
 const authRoutes = require("./routes/authRoutes");
 const appointmentRoutes = require("./routes/appointmentRoutes");
 const doctorRoutes = require("./routes/doctorRoutes");
@@ -20,8 +22,6 @@ const analyticsRoutes = require("./routes/analyticsRoutes");
 const invoiceRoutes = require("./routes/invoiceRoutes");
 const forgotPasswordRoutes = require("./routes/forgotPasswordRoutes");
 const reportRoutes = require("./routes/reportRoutes");
-
-
 
 const app = express();
 
@@ -60,6 +60,16 @@ app.use(
 );
 
 app.use(express.json());
+
+// ==============================
+// Static Uploads
+// ==============================
+// Profile images:
+// http://localhost:5000/uploads/profile/filename.jpg
+app.use(
+    "/uploads",
+    express.static("uploads")
+);
 
 // ==============================
 // Socket Connection
@@ -127,8 +137,6 @@ app.use("/api/forgot-password", forgotPasswordRoutes);
 
 app.use("/api/reports", reportRoutes);
 
-
-
 // ==============================
 // 404 Route
 // ==============================
@@ -162,6 +170,8 @@ const PORT = process.env.PORT || 5000;
 
 server.listen(PORT, () => {
 
-    console.log(`🚀 Server Running : http://localhost:${PORT}`);
+    console.log(
+        ` Server Running : http://localhost:${PORT}`
+    );
 
 });
