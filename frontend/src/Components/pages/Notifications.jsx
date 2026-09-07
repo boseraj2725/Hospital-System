@@ -1,3 +1,4 @@
+
 import { useEffect, useState } from "react";
 import api from "../../services/api";
 import socket from "../../services/socket";
@@ -7,7 +8,6 @@ import Loader from "./Loader";
 import "../styles/Notifications.css";
 
 function Notifications() {
-
     const [notifications, setNotifications] = useState([]);
     const [loading, setLoading] = useState(true);
 
@@ -15,9 +15,7 @@ function Notifications() {
     // Fetch Notifications
     // ==========================
     const fetchNotifications = async () => {
-
         try {
-
             const token = localStorage.getItem("token");
 
             const res = await api.get("/notifications", {
@@ -29,7 +27,6 @@ function Notifications() {
             setNotifications(res.data.notifications || []);
 
         } catch (error) {
-
             console.log(error);
 
             toast.error(
@@ -38,35 +35,42 @@ function Notifications() {
             );
 
         } finally {
-
             setLoading(false);
-
         }
-
     };
 
     // ==========================
     // Initial Load + Socket.IO
     // ==========================
     useEffect(() => {
-
         fetchNotifications();
 
-        socket.on("newNotification", (notification) => {
+        // Connect Socket.IO
+        socket.connect();
 
+        socket.on("connect", () => {
+            console.log("✅ Socket.IO Connected:", socket.id);
+        });
+
+        socket.on("connect_error", (error) => {
+            console.error("❌ Socket.IO Connection Error:", error.message);
+        });
+
+        socket.on("newNotification", (notification) => {
             setNotifications((prev) => [
                 notification,
                 ...prev,
             ]);
 
             toast.info(notification.title);
-
         });
 
         return () => {
-
+            socket.off("connect");
+            socket.off("connect_error");
             socket.off("newNotification");
 
+            socket.disconnect();
         };
 
     }, []);
@@ -82,9 +86,7 @@ function Notifications() {
     // Mark As Read
     // ==========================
     const markAsRead = async (id) => {
-
         try {
-
             const token = localStorage.getItem("token");
 
             await api.put(
@@ -111,21 +113,17 @@ function Notifications() {
             toast.success("Notification Marked as Read");
 
         } catch (error) {
-
             toast.error(
                 error.response?.data?.message ||
                 "Something went wrong"
             );
-
         }
-
     };
 
     // ==========================
     // Delete Notification
     // ==========================
     const deleteNotification = async (id) => {
-
         const result = await Swal.fire({
             title: "Delete Notification?",
             text: "This action cannot be undone.",
@@ -138,14 +136,16 @@ function Notifications() {
         if (!result.isConfirmed) return;
 
         try {
-
             const token = localStorage.getItem("token");
 
-            await api.delete(`/notifications/delete/${id}`, {
-                headers: {
-                    Authorization: `Bearer ${token}`,
-                },
-            });
+            await api.delete(
+                `/notifications/delete/${id}`,
+                {
+                    headers: {
+                        Authorization: `Bearer ${token}`,
+                    },
+                }
+            );
 
             setNotifications((prev) =>
                 prev.filter((item) => item._id !== id)
@@ -154,21 +154,17 @@ function Notifications() {
             toast.success("Notification Deleted");
 
         } catch (error) {
-
             toast.error(
                 error.response?.data?.message ||
                 "Delete Failed"
             );
-
         }
-
     };
 
     // ==========================
     // Clear All Notifications
     // ==========================
     const clearAll = async () => {
-
         const result = await Swal.fire({
             title: "Clear All Notifications?",
             text: "This action cannot be undone.",
@@ -181,36 +177,40 @@ function Notifications() {
         if (!result.isConfirmed) return;
 
         try {
-
             const token = localStorage.getItem("token");
 
-            await api.delete("/notifications/clear", {
-                headers: {
-                    Authorization: `Bearer ${token}`,
-                },
-            });
+            await api.delete(
+                "/notifications/clear",
+                {
+                    headers: {
+                        Authorization: `Bearer ${token}`,
+                    },
+                }
+            );
 
             setNotifications([]);
 
             toast.success("All Notifications Cleared");
 
         } catch (error) {
-
             toast.error(
                 error.response?.data?.message ||
                 "Failed to Clear Notifications"
             );
-
         }
-
     };
 
+    // ==========================
+    // Loader
+    // ==========================
     if (loading) {
         return <Loader />;
     }
 
+    // ==========================
+    // UI
+    // ==========================
     return (
-
         <div className="notifications-container">
 
             <div className="notification-header">
@@ -230,69 +230,65 @@ function Notifications() {
 
             </div>
 
-            {
-                notifications.length === 0 ? (
+            {notifications.length === 0 ? (
 
-                    <h2 className="empty">
-                        No Notifications
-                    </h2>
+                <h2 className="empty">
+                    No Notifications
+                </h2>
 
-                ) : (
+            ) : (
 
-                    notifications.map((item) => (
+                notifications.map((item) => (
 
-                        <div
-                            key={item._id}
-                            className={`notification ${item.isRead ? "read" : ""}`}
-                        >
+                    <div
+                        key={item._id}
+                        className={`notification ${
+                            item.isRead ? "read" : ""
+                        }`}
+                    >
 
-                            <h3>{item.title}</h3>
+                        <h3>{item.title}</h3>
 
-                            <p>{item.message}</p>
+                        <p>{item.message}</p>
 
-                            <span>
-                                {new Date(item.createdAt).toLocaleString()}
-                            </span>
+                        <span>
+                            {new Date(
+                                item.createdAt
+                            ).toLocaleString()}
+                        </span>
 
-                            <div className="notification-actions">
+                        <div className="notification-actions">
 
-                                {
-                                    !item.isRead && (
-
-                                        <button
-                                            className="read-btn"
-                                            onClick={() =>
-                                                markAsRead(item._id)
-                                            }
-                                        >
-                                            Mark Read
-                                        </button>
-
-                                    )
-                                }
-
+                            {!item.isRead && (
                                 <button
-                                    className="delete-btn"
+                                    className="read-btn"
                                     onClick={() =>
-                                        deleteNotification(item._id)
+                                        markAsRead(item._id)
                                     }
                                 >
-                                    Delete
+                                    Mark Read
                                 </button>
+                            )}
 
-                            </div>
+                            <button
+                                className="delete-btn"
+                                onClick={() =>
+                                    deleteNotification(item._id)
+                                }
+                            >
+                                Delete
+                            </button>
 
                         </div>
 
-                    ))
+                    </div>
 
-                )
-            }
+                ))
+            )}
 
         </div>
-
     );
-
 }
 
 export default Notifications;
+

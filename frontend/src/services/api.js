@@ -1,16 +1,12 @@
 import axios from "axios";
 
 const api = axios.create({
-
-    baseURL: "http://localhost:5000/api",
-
+    baseURL: "https://hospital-system-1-03ln.onrender.com/api",
     timeout: 10000,
-
     headers: {
         "Content-Type": "application/json",
         Accept: "application/json",
     },
-
 });
 
 // ===============================
@@ -18,9 +14,7 @@ const api = axios.create({
 // ===============================
 
 api.interceptors.request.use(
-
     (config) => {
-
         const token = localStorage.getItem("token");
 
         if (token) {
@@ -28,11 +22,8 @@ api.interceptors.request.use(
         }
 
         return config;
-
     },
-
     (error) => Promise.reject(error)
-
 );
 
 // ===============================
@@ -40,31 +31,26 @@ api.interceptors.request.use(
 // ===============================
 
 api.interceptors.response.use(
-
     (response) => response,
 
     (error) => {
-
         if (error.response?.status === 401) {
-
             localStorage.removeItem("token");
             localStorage.removeItem("user");
 
             window.location.href = "/login";
-
         }
 
         return Promise.reject(error);
-
     }
-
 );
 
 // ===============================
 // Doctor APIs
 // ===============================
 
-export const getDoctors = () => api.get("/doctors");
+export const getDoctors = () =>
+    api.get("/doctors");
 
 export const addDoctor = (doctorData) =>
     api.post("/doctors/add", doctorData);
@@ -79,7 +65,8 @@ export const deleteDoctor = (id) =>
 // Patient APIs
 // ===============================
 
-export const getPatients = () => api.get("/patients");
+export const getPatients = () =>
+    api.get("/patients");
 
 export const getPatient = (id) =>
     api.get(`/patients/${id}`);
