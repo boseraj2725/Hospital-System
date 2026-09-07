@@ -3,6 +3,7 @@ require("dotenv").config();
 const express = require("express");
 const cors = require("cors");
 const http = require("http");
+const path = require("path");
 const { Server } = require("socket.io");
 
 const connectDB = require("./config/db");
@@ -23,89 +24,159 @@ const invoiceRoutes = require("./routes/invoiceRoutes");
 const forgotPasswordRoutes = require("./routes/forgotPasswordRoutes");
 const reportRoutes = require("./routes/reportRoutes");
 
+// ==============================
+// App
+// ==============================
 const app = express();
 
 // ==============================
-// Create HTTP Server
+// HTTP Server
 // ==============================
 const server = http.createServer(app);
 
 // ==============================
-// Socket.IO Setup
+// Allowed Frontend Origins
 // ==============================
-const io = new Server(server, {
-    cors: {
-        origin: "http://localhost:5173",
-        methods: ["GET", "POST", "PUT", "DELETE"],
-        credentials: true,
-    },
-});
-
-// Make io available in controllers
-app.set("io", io);
+const allowedOrigins = [
+    "http://localhost:5173",
+    "https://hospital-system-front.onrender.com",
+];
 
 // ==============================
-// Connect MongoDB
-// ==============================
-connectDB();
-
-// ==============================
-// Middlewares
+// CORS
 // ==============================
 app.use(
     cors({
-        origin: "http://localhost:5173",
+        origin: function (origin, callback) {
+
+            // Allow requests without Origin
+            // Example: Postman
+            if (!origin) {
+                return callback(null, true);
+            }
+
+            if (allowedOrigins.includes(origin)) {
+                return callback(null, true);
+            }
+
+            console.log("❌ CORS Blocked:", origin);
+
+            return callback(
+                new Error("Not allowed by CORS")
+            );
+        },
+
+        methods: [
+            "GET",
+            "POST",
+            "PUT",
+            "DELETE",
+            "PATCH",
+            "OPTIONS",
+        ],
+
+        allowedHeaders: [
+            "Content-Type",
+            "Authorization",
+        ],
+
         credentials: true,
     })
 );
 
+// ==============================
+// Body Parser
+// ==============================
 app.use(express.json());
+app.use(
+    express.urlencoded({
+        extended: true,
+    })
+);
 
 // ==============================
 // Static Uploads
 // ==============================
-// Profile images:
-// http://localhost:5000/uploads/profile/filename.jpg
 app.use(
     "/uploads",
-    express.static("uploads")
+    express.static(
+        path.join(__dirname, "uploads")
+    )
 );
+
+// ==============================
+// Socket.IO
+// ==============================
+const io = new Server(server, {
+    cors: {
+        origin: allowedOrigins,
+
+        methods: [
+            "GET",
+            "POST",
+        ],
+
+        credentials: true,
+    },
+
+    transports: [
+        "polling",
+        "websocket",
+    ],
+});
+
+// Make Socket.IO available
+// inside controllers
+app.set("io", io);
 
 // ==============================
 // Socket Connection
 // ==============================
 io.on("connection", (socket) => {
 
-    console.log("🟢 User Connected:", socket.id);
+    console.log(
+        "🟢 Socket Connected:",
+        socket.id
+    );
 
-    socket.on("disconnect", () => {
+    socket.on("disconnect", (reason) => {
 
-        console.log("🔴 User Disconnected:", socket.id);
+        console.log(
+            "🔴 Socket Disconnected:",
+            socket.id,
+            reason
+        );
 
     });
-
 });
+
+// ==============================
+// MongoDB
+// ==============================
+connectDB();
 
 // ==============================
 // Home Route
 // ==============================
 app.get("/", (req, res) => {
 
-    res.json({
+    res.status(200).json({
         success: true,
-        message: "🏥 SmartCare AI Hospital Backend Running...",
+        message:
+            "🏥 SmartCare AI Hospital Backend Running...",
     });
 
 });
 
 // ==============================
-// Test Route
+// API Test
 // ==============================
 app.get("/api/test", (req, res) => {
 
-    res.json({
+    res.status(200).json({
         success: true,
-        message: "API Working Successfully",
+        message:
+            "API Working Successfully",
     });
 
 });
@@ -113,38 +184,76 @@ app.get("/api/test", (req, res) => {
 // ==============================
 // API Routes
 // ==============================
-app.use("/api/auth", authRoutes);
 
-app.use("/api/dashboard", dashboardRoutes);
+app.use(
+    "/api/auth",
+    authRoutes
+);
 
-app.use("/api/billing", billingRoutes);
+app.use(
+    "/api/appointments",
+    appointmentRoutes
+);
 
-app.use("/api/doctors", doctorRoutes);
+app.use(
+    "/api/doctors",
+    doctorRoutes
+);
 
-app.use("/api/patients", patientRoutes);
+app.use(
+    "/api/patients",
+    patientRoutes
+);
 
-app.use("/api/appointments", appointmentRoutes);
+app.use(
+    "/api/dashboard",
+    dashboardRoutes
+);
 
-app.use("/api/notifications", notificationRoutes);
+app.use(
+    "/api/billing",
+    billingRoutes
+);
 
-app.use("/api/users", userRoutes);
+app.use(
+    "/api/notifications",
+    notificationRoutes
+);
 
-app.use("/api/analytics", analyticsRoutes);
+app.use(
+    "/api/users",
+    userRoutes
+);
 
-app.use("/api/invoice", invoiceRoutes);
+app.use(
+    "/api/analytics",
+    analyticsRoutes
+);
 
-app.use("/api/forgot-password", forgotPasswordRoutes);
+app.use(
+    "/api/invoice",
+    invoiceRoutes
+);
 
-app.use("/api/reports", reportRoutes);
+app.use(
+    "/api/forgot-password",
+    forgotPasswordRoutes
+);
+
+app.use(
+    "/api/reports",
+    reportRoutes
+);
 
 // ==============================
-// 404 Route
+// 404 Handler
 // ==============================
 app.use((req, res) => {
 
     res.status(404).json({
         success: false,
         message: "Route Not Found",
+        path: req.originalUrl,
     });
 
 });
@@ -152,26 +261,38 @@ app.use((req, res) => {
 // ==============================
 // Global Error Handler
 // ==============================
-app.use((err, req, res, next) => {
+app.use(
+    (err, req, res, next) => {
 
-    console.error(err.stack);
+        console.error(
+            "❌ Server Error:",
+            err.message
+        );
 
-    res.status(500).json({
-        success: false,
-        message: err.message || "Internal Server Error",
-    });
+        res.status(500).json({
+            success: false,
+            message:
+                err.message ||
+                "Internal Server Error",
+        });
 
-});
+    }
+);
 
 // ==============================
 // Start Server
 // ==============================
-const PORT = process.env.PORT || 5000;
+const PORT =
+    process.env.PORT || 5000;
 
 server.listen(PORT, () => {
 
     console.log(
-        ` Server Running : http://localhost:${PORT}`
+        `🚀 Server Running on port ${PORT}`
+    );
+
+    console.log(
+        `🌐 Local: http://localhost:${PORT}`
     );
 
 });
